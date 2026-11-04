@@ -9,7 +9,7 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const DIA = 86400000;
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 
 const DEF = { lang: null, ciudad: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
 let S = cargar();
@@ -57,10 +57,67 @@ const fechaTxt = ms => new Date(ms).toLocaleDateString(localeTag(), { day: 'nume
 /* =====================================================================
    3) Momento del día y tema
    ===================================================================== */
-const esNocheAhora = () => { const h = new Date().getHours(); return h >= 20 || h < 7; };
+/* Hora local de la ciudad elegida (no la del dispositivo) */
+function ahoraCiudad() {
+  try {
+    const p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: CIUDAD.tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+    return { dow: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday), min: (+p.hour % 24) * 60 + +p.minute };
+  } catch (e) { const d = new Date(); return { dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() }; }
+}
+const esNocheAhora = () => { const h = Math.floor(ahoraCiudad().min / 60); return h >= 20 || h < 7; };
 const momento = () => S.ajustes.momento === 'ahora' ? (esNocheAhora() ? 'noche' : 'dia') : S.ajustes.momento;
 const tema = () => S.ajustes.tema === 'auto' ? (momento() === 'noche' ? 'dark' : 'light') : S.ajustes.tema;
-const abierto = v => v.franja === 'ambos' || v.franja === momento();
+/* Horarios de OpenStreetMap (subconjunto de opening_hours). Devuelve 7 días (lun=0) con intervalos [ini, fin] en minutos; fin > 1440 = pasa de medianoche. null = desconocido o no interpretable. */
+const DIAS_OSM = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+function parseHorario(oh) {
+  if (!oh) return null;
+  const sem = [[], [], [], [], [], [], []];
+  let s = oh.trim().replace(/(\d)\s*,\s*(?=[A-Z][a-z](?:[-,][A-Z][a-z])*\s+\d)/g, '$1;');
+  if (/^24\/7$/.test(s)) return DIAS_OSM.map(() => [[0, 1440]]);
+  for (let regla of s.split(';')) {
+    regla = regla.replace(/,?\s*\bPH\b/g, '').trim();
+    if (!regla) continue;
+    let dias = [0, 1, 2, 3, 4, 5, 6], resto = regla;
+    const m = regla.match(/^([A-Z][a-z](?:-[A-Z][a-z])?(?:\s*,\s*[A-Z][a-z](?:-[A-Z][a-z])?)*)\s+(.*)$/);
+    if (m) {
+      dias = []; resto = m[2];
+      for (const tr of m[1].split(',')) {
+        const [x, y] = tr.trim().split('-'), i = DIAS_OSM.indexOf(x), j = y ? DIAS_OSM.indexOf(y) : i;
+        if (i < 0 || j < 0) return null;
+        for (let k = i; ; k = (k + 1) % 7) { dias.push(k); if (k === j) break; }
+      }
+    } else if (/^[A-Z][a-z]\s*$/.test(regla)) return null;
+    let ints;
+    if (/^(off|closed)$/i.test(resto)) ints = [];
+    else {
+      ints = [];
+      for (const tr of resto.split(',')) {
+        const mm = tr.trim().match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+        if (!mm) return null;
+        const ini = +mm[1] * 60 + +mm[2]; let fin = +mm[3] * 60 + +mm[4]; if (fin <= ini) fin += 1440;
+        ints.push([ini, fin]);
+      }
+    }
+    dias.forEach(dd => { sem[dd] = ints; });
+  }
+  return sem;
+}
+const semDe = v => { if (v._sem === undefined) v._sem = parseHorario(v.oh); return v._sem; };
+function abiertoEn(sem, dow, min) {
+  if (sem[dow].some(([i, f]) => min >= i && min < f)) return true;
+  return sem[(dow + 6) % 7].some(([, f]) => f > 1440 && min + 1440 < f);
+}
+const hhmm = m => { m = m % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+function horarioHoy(v) { const sem = semDe(v); if (!sem) return ''; const n = ahoraCiudad(); return sem[n.dow].map(([i, f]) => hhmm(i) + ' – ' + hhmm(f)).join(', '); }
+function proximaApertura(v) { const sem = semDe(v); if (!sem) return ''; const n = ahoraCiudad(), f = sem[n.dow].filter(([i]) => i > n.min).sort((x, y) => x[0] - y[0])[0]; return f ? hhmm(f[0]) : ''; }
+const abierto = v => {
+  const sem = semDe(v);
+  if (sem) {
+    if (S.ajustes.momento === 'ahora') { const n = ahoraCiudad(); return abiertoEn(sem, n.dow, n.min); }
+    return S.ajustes.momento === 'noche' ? [3, 4, 5].some(d => abiertoEn(sem, d, 1380)) : [0, 1, 2, 3, 4, 5, 6].some(d => abiertoEn(sem, d, 840));
+  }
+  return v.franja === 'ambos' || v.franja === momento();
+};
 function semilla(str) { let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return function () { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); h ^= h >>> 16; let a = h >>> 0; a += 0x6D2B79F5; let r = Math.imul(a ^ a >>> 15, 1 | a); r ^= r + Math.imul(r ^ r >>> 7, 61 | r) ^ r; return ((r ^ r >>> 14) >>> 0) / 4294967296; }; }
 function gauss(rng) { const u = 1 - rng(), v = rng(); const m = Math.sqrt(-2 * Math.log(u)); return [m * Math.cos(2 * Math.PI * v), m * Math.sin(2 * Math.PI * v)]; }
 
@@ -517,7 +574,7 @@ function tarjetaLocal(v) {
       <div class="mini">${textoEstado(v, e)}</div></div>
     <div class="badge-match">${e.match}%</div></button>`;
 }
-function textoEstado(v, e) { return e.abierto ? t('l.occ', { p: Math.round(e.ocup * 100), n: e.personas }) : t('l.closed', { h: v.horario.split(' ')[0] }); }
+function textoEstado(v, e) { return e.abierto ? t('l.occ', { p: Math.round(e.ocup * 100), n: e.personas }) : (proximaApertura(v) ? t('l.closed', { h: proximaApertura(v) }) : t('l.closed2')); }
 function bloqueLocales(z) {
   const abiertos = LOCALES.filter(v => v.zona === z.id && abierto(v));
   if (esPremium()) {
@@ -540,12 +597,12 @@ function htmlSheetZona(z) {
 }
 function htmlSheetLocal(v) {
   const e = estadoLocal(v), z = zonaDe(v), col = COLOR[e.nivel], fav = S.favs.includes(v.id), tab = V_.sheet.tab;
-  const mot = motivos(S.usuario, e.perfil);
+  const mot = motivos(S.usuario, e.perfil).filter((m, i, l) => !(v.real && !v.musica.length && i === l.length - 1));
   let cuerpo = '';
   if (tab === 'resumen') {
     cuerpo = `<div class="live-box"><div class="barra grande"><i id="lv-barra" style="width:${Math.round(e.ocup * 100)}%"></i></div><div class="mini" id="lv-txt">${textoEstado(v, e)}</div></div>
-      <div class="datos"><div><span>${t('l.hours')}</span><b>${esc(v.horario)}</b></div>${v.precio ? `<div><span>${t('l.price')}</span><b>${v.precio}</b></div>` : ''}<div><span>${t('l.music')}</span><b>${esc(lista(v.musica.map(m => t('o.musica.' + m))))}</b></div><div><span>${t('l.capacity')}</span><b>${v.aforo}</b></div></div>
-      <p class="desc">${esc((DESC[v.id] || {})[LANG] || '')}</p>
+      <div class="datos"><div><span>${t('l.hours')}</span><b>${esc(horarioHoy(v) || (semDe(v) ? t('l.closed2') : t('l.hours.na')))}</b></div>${v.dir ? `<div><span>${t('l.addr')}</span><b>${esc(v.dir)}</b></div>` : ''}${v.precio ? `<div><span>${t('l.price')}</span><b>${v.precio}</b></div>` : ''}${v.musica.length ? `<div><span>${t('l.music')}</span><b>${esc(lista(v.musica.map(m => t('o.musica.' + m))))}</b></div>` : ''}<div><span>${t('l.capacity')}</span><b>${v.real ? '≈' : ''}${v.aforo}</b></div></div>
+      ${(DESC[v.id] || {})[LANG] ? `<p class="desc">${esc(DESC[v.id][LANG])}</p>` : ''}${v.real ? `<p class="mini">${t('l.source')}</p>` : ''}
       <h4>${t('z.why')}</h4><ul class="motivos">${mot.map(m => `<li class="${m.ok ? 'ok' : 'no'}"><i>${m.ok ? '✓' : '–'}</i>${esc(m.t)}</li>`).join('')}</ul>`;
   } else if (tab === 'gente') {
     cuerpo = htmlGente(e.perfil);
@@ -558,7 +615,14 @@ function htmlSheetLocal(v) {
         <div class="fila-btn"><a class="btn sec" href="https://wa.me/${wa}" target="_blank" rel="noopener">${t('l.whatsapp')}</a><a class="btn sec" href="tel:${tel}">${t('l.call')}</a><a class="btn sec" href="https://instagram.com/${pr.ig}" target="_blank" rel="noopener">${t('l.instagram')}</a></div>
         <p class="mini">${t('l.contact_demo')}</p>
         ${RESERVA_TIPOS[v.tipo].length ? `<button class="btn grande" data-accion="reservar" data-id="${v.id}">${t('r.title')}</button>` : ''}`;
-    } else cuerpo = `<p class="mini">${t('l.nopartner')}</p>`;
+    } else {
+      const tel = (v.tel || '').replace(/[^\d+]/g, ''), btn = [];
+      if (v.web) btn.push(`<a class="btn sec" href="${esc(v.web)}" target="_blank" rel="noopener noreferrer">${t('l.web')}</a>`);
+      if (tel) btn.push(`<a class="btn sec" href="tel:${tel}">${t('l.call')}</a>`);
+      if (v.ig) btn.push(`<a class="btn sec" href="https://instagram.com/${esc(v.ig)}" target="_blank" rel="noopener noreferrer">${t('l.instagram')}</a>`);
+      cuerpo = `<div class="live-box"><h4 style="margin-top:0">${t('l.live')}</h4><div class="barra grande"><i id="lv-barra2" style="width:${Math.round(e.ocup * 100)}%"></i></div><div class="mini" id="lv-txt2">${textoEstado(v, e)}</div><div class="mini">${t('l.live.sub')}</div></div>
+        ${btn.length ? `<div class="fila-btn">${btn.join('')}</div><p class="mini">${t('l.contact_real')}</p>` : `<p class="mini">${t('l.nopartner')}</p>`}`;
+    }
   }
   return `${V_.sheet.desde ? `<button class="link atras" data-accion="abrir-zona" data-id="${V_.sheet.desde}">‹ ${t('l.back')}</button>` : ''}
     <div class="sh-cab ${e.nivel}"><div class="foto g" style="--grad:${GRAD[v.tipo]}">${ICONO_TIPO[v.tipo]}</div>

@@ -1,10 +1,10 @@
 /* VibeMaps · service worker. Sube VERSION en cada publicación para que los móviles se actualicen solos. */
-const VERSION = 'vibemaps-v1.1.0';
+const VERSION = 'vibemaps-v1.2.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'vibemaps-tiles-v1';
 const MAX_TILES = 500;
 const ARCHIVOS = [
-  './', 'index.html', 'style.css', 'app.js', 'data.js', 'i18n.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css', 'app.js', 'data.js', 'real.js', 'i18n.js', 'manifest.webmanifest',
   'vendor/leaflet.js', 'vendor/leaflet.css',
   'fonts/sora-latin-400-normal.woff2', 'fonts/sora-latin-600-normal.woff2', 'fonts/sora-latin-700-normal.woff2', 'fonts/sora-latin-800-normal.woff2',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'

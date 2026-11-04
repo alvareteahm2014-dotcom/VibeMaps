@@ -1,4 +1,4 @@
-/* VibeMaps · datos simulados de Londres y Madrid (zonas, locales, promotores) */
+/* VibeMaps · zonas simuladas y locales reales (OpenStreetMap) de Londres y Madrid */
 'use strict';
 
 const CONFIG = {
@@ -68,49 +68,7 @@ const ZONAS_MAD = [
 function V(id, zona, nombre, tipo, franja, partner, precio, aforo, horario, musica, ambiente, lat, lng) {
   return { id, zona, nombre, tipo, franja, partner, precio, aforo, horario, musica, ambiente, lat, lng };
 }
-const LOCALES_MAD = [
-  V('ambar', 'salamanca', 'Ámbar', 'club', 'noche', true, '€€€', 550, '23:30 – 06:00', ['comercial', 'electronica'], 'fiesta', 40.4280, -3.6795),
-  V('velvet', 'salamanca', 'Velvet Lounge', 'cocktail', 'noche', false, '€€€', 180, '19:00 – 03:00', ['electronica', 'comercial'], 'copas', 40.4249, -3.6840),
-  V('serrano22', 'salamanca', 'Terraza Serrano 22', 'terraza', 'ambos', true, '€€', 140, '12:00 – 01:30', ['indie', 'comercial'], 'terraza', 40.4270, -3.6870),
-  V('nebula', 'azca', 'Nébula', 'club', 'noche', true, '€€€', 900, '00:00 – 06:30', ['reggaeton', 'comercial'], 'fiesta', 40.4512, -3.6928),
-  V('norte', 'azca', 'Sala Norte', 'club', 'noche', false, '€€', 700, '23:30 – 06:00', ['techno', 'electronica'], 'fiesta', 40.4495, -3.6950),
-  V('oficina', 'azca', 'La Oficina', 'bar', 'noche', false, '€€', 160, '18:00 – 03:00', ['comercial', 'rock'], 'copas', 40.4520, -3.6905),
-  V('almendro', 'malasana', 'Bar Almendro', 'bar', 'noche', false, '€', 110, '19:00 – 03:00', ['indie', 'rock'], 'copas', 40.4272, -3.7062),
-  V('cabina', 'malasana', 'La Cabina', 'sala', 'noche', false, '€€', 250, '20:30 – 04:00', ['indie', 'rock'], 'conciertos', 40.4258, -3.7030),
-  V('taller29', 'malasana', 'Taller 29', 'bar', 'noche', true, '€€', 200, '22:00 – 05:00', ['electronica', 'techno'], 'fiesta', 40.4280, -3.7040),
-  V('pluma', 'chueca', 'Pluma', 'cocktail', 'noche', true, '€€', 150, '20:00 – 03:30', ['electronica', 'comercial'], 'copas', 40.4235, -3.6985),
-  V('arlequin', 'chueca', 'Club Arlequín', 'club', 'noche', false, '€€', 480, '00:00 – 06:00', ['comercial', 'electronica'], 'fiesta', 40.4222, -3.6962),
-  V('hortaleza', 'chueca', 'Terraza Hortaleza', 'terraza', 'ambos', false, '€€', 120, '12:00 – 01:00', ['comercial', 'indie'], 'terraza', 40.4240, -3.6970),
-  V('tamarindo', 'lavapies', 'Casa Tamarindo', 'bar', 'noche', false, '€', 130, '19:00 – 03:00', ['reggaeton', 'indie'], 'copas', 40.4092, -3.7022),
-  V('acequia', 'lavapies', 'Sala Acequia', 'sala', 'noche', true, '€€', 320, '21:00 – 04:00', ['indie', 'rock'], 'conciertos', 40.4078, -3.6995),
-  V('campus', 'moncloa', 'Campus Club', 'club', 'noche', true, '€', 600, '23:00 – 05:30', ['reggaeton', 'comercial'], 'fiesta', 40.4358, -3.7210),
-  V('cantina', 'moncloa', 'La Cantina del Arco', 'bar', 'noche', false, '€', 140, '18:00 – 02:30', ['comercial', 'rock'], 'copas', 40.4345, -3.7180),
-  V('estanque', 'retiro', 'Terraza Estanque', 'terraza', 'ambos', true, '€€', 170, '10:00 – 01:00', ['indie', 'comercial'], 'terraza', 40.4160, -3.6835),
-  V('brunch', 'retiro', 'Brunch & Co', 'terraza', 'dia', false, '€€', 90, '09:00 – 18:00', ['indie'], 'tranquilo', 40.4145, -3.6852),
-  V('manzanares', 'rio', 'Chiringuito Manzanares', 'terraza', 'ambos', false, '€€', 200, '11:00 – 01:00', ['comercial', 'indie'], 'terraza', 40.4010, -3.7150),
-  V('campa', 'rio', 'Campa del Río', 'parque', 'dia', false, '', 800, '08:00 – 22:00', ['indie'], 'tranquilo', 40.3995, -3.7185),
-  V('azotea', 'sol', 'Azotea Sol 7', 'rooftop', 'ambos', true, '€€€', 220, '13:00 – 02:00', ['electronica', 'comercial'], 'copas', 40.4162, -3.7025),
-  V('meridiano', 'sol', 'Club Meridiano', 'club', 'noche', false, '€€', 750, '23:30 – 06:00', ['comercial', 'reggaeton'], 'fiesta', 40.4143, -3.6988),
-  V('bodega', 'sol', 'Bodega Huertas', 'bar', 'ambos', false, '€', 100, '12:00 – 02:00', ['rock', 'indie'], 'copas', 40.4138, -3.6975),
-  V('cava', 'latina', 'Terraza Cava Baja', 'terraza', 'ambos', false, '€€', 160, '12:00 – 01:30', ['comercial', 'indie'], 'terraza', 40.4113, -3.7085),
-  V('vermut45', 'latina', 'Bar Vermut 45', 'bar', 'ambos', false, '€', 90, '11:00 – 00:30', ['rock', 'indie'], 'tranquilo', 40.4102, -3.7110),
-  V('olavide', 'chamberi', 'Rooftop Olavide', 'rooftop', 'ambos', true, '€€€', 180, '13:00 – 01:30', ['electronica', 'indie'], 'copas', 40.4340, -3.7020),
-  V('breton', 'chamberi', 'Café Bretón', 'bar', 'ambos', false, '€€', 100, '10:00 – 01:00', ['indie', 'rock'], 'tranquilo', 40.4325, -3.7050)
-];
 
-/* Contactos ficticios de los locales con reserva directa */
-const PROMOTORES_MAD = {
-  ambar: { nombre: 'Lucía Ferrer', tel: '+34 600 000 001', ig: 'ambar.demo' },
-  serrano22: { nombre: 'Carlos Rey', tel: '+34 600 000 002', ig: 'serrano22.demo' },
-  nebula: { nombre: 'Marta Sanz', tel: '+34 600 000 003', ig: 'nebula.demo' },
-  taller29: { nombre: 'Íñigo Lara', tel: '+34 600 000 004', ig: 'taller29.demo' },
-  pluma: { nombre: 'Dani Cruz', tel: '+34 600 000 005', ig: 'pluma.demo' },
-  acequia: { nombre: 'Noor Haddad', tel: '+34 600 000 006', ig: 'acequia.demo' },
-  campus: { nombre: 'Sergio Peña', tel: '+34 600 000 007', ig: 'campus.demo' },
-  estanque: { nombre: 'Elena Gil', tel: '+34 600 000 008', ig: 'estanque.demo' },
-  azotea: { nombre: 'Pablo Mora', tel: '+34 600 000 009', ig: 'azotea.demo' },
-  olavide: { nombre: 'Irene Vidal', tel: '+34 600 000 010', ig: 'olavide.demo' }
-};
 
 /* =====================================================================
    LONDRES (ciudad principal) · datos simulados; nombres de locales ficticios
@@ -140,58 +98,24 @@ const ZONAS_LDN = [
     perfil: P(31, { '18-24': 14, '25-35': 48, '36-45': 26, '45+': 12 }, 51, [20, 12, 14, 10, 34, 10], [14, 12, 12, 6, 8, 8, 10, 8, 6, 6, 6, 4], 50, ['FR', 'US', 'ES'], .75, [12, 28, 34, 10, 14, 2], [22, 18, 8, 6, 26, 20], ['tag.river', 'tag.tourist', 'tag.walk']) }
 ];
 
-const LOCALES_LDN = [
-  V('l_nocturne', 'soho', 'Nocturne Soho', 'club', 'noche', true, '£££', 600, '22:00 – 04:00', ['electronica', 'comercial'], 'fiesta', 51.5139, -0.1322),
-  V('l_blueroom', 'soho', 'The Blue Room', 'cocktail', 'noche', false, '£££', 120, '17:00 – 01:00', ['electronica', 'indie'], 'copas', 51.5127, -0.1350),
-  V('l_dukeyard', 'soho', 'Duke Yard Bar', 'bar', 'ambos', false, '££', 150, '12:00 – 23:30', ['comercial', 'indie'], 'copas', 51.5142, -0.1342),
-  V('l_marlowe', 'mayfair', 'Marlowe Club', 'club', 'noche', true, '£££', 380, '22:30 – 03:30', ['comercial', 'electronica'], 'fiesta', 51.5092, -0.1510),
-  V('l_gilded', 'mayfair', 'Gilded Cocktail Room', 'cocktail', 'noche', true, '£££', 110, '17:00 – 01:00', ['electronica', 'comercial'], 'copas', 51.5078, -0.1535),
-  V('l_sky', 'mayfair', 'Skyline 22', 'rooftop', 'ambos', false, '£££', 200, '12:00 – 00:30', ['electronica'], 'copas', 51.5098, -0.1495),
-  V('l_warehouse', 'shoreditch', 'Warehouse 9', 'club', 'noche', true, '££', 800, '22:00 – 05:00', ['techno', 'electronica'], 'fiesta', 51.5242, -0.0780),
-  V('l_brickyard', 'shoreditch', 'Brickyard Social', 'bar', 'noche', false, '££', 220, '16:00 – 02:00', ['indie', 'electronica'], 'copas', 51.5228, -0.0812),
-  V('l_rooftopeast', 'shoreditch', 'East Roof Terrace', 'rooftop', 'ambos', true, '£££', 240, '12:00 – 23:30', ['electronica', 'comercial'], 'terraza', 51.5251, -0.0802),
-  V('l_dalsonstage', 'dalston', 'Dalston Stage', 'sala', 'noche', false, '££', 350, '19:30 – 03:00', ['indie', 'rock'], 'conciertos', 51.5459, -0.0742),
-  V('l_basement', 'dalston', 'The Basement Sessions', 'club', 'noche', true, '££', 420, '22:00 – 05:00', ['techno', 'electronica'], 'fiesta', 51.5472, -0.0768),
-  V('l_kingsland', 'dalston', 'Kingsland Corner', 'bar', 'ambos', false, '£', 130, '14:00 – 01:00', ['indie', 'rock'], 'copas', 51.5480, -0.0745),
-  V('l_electricyard', 'camden', 'Electric Yard', 'sala', 'noche', true, '££', 700, '19:00 – 03:00', ['rock', 'indie'], 'conciertos', 51.5398, -0.1435),
-  V('l_locklane', 'camden', 'Lock Lane Pub', 'bar', 'ambos', false, '£', 180, '11:00 – 00:00', ['rock', 'comercial'], 'copas', 51.5385, -0.1410),
-  V('l_marketstage', 'camden', 'Market Stage', 'terraza', 'ambos', false, '£', 260, '11:00 – 23:00', ['rock', 'indie'], 'terraza', 51.5405, -0.1445),
-  V('l_electricbrix', 'brixton', 'Brixton Warehouse', 'club', 'noche', true, '££', 650, '22:00 – 05:00', ['electronica', 'reggaeton'], 'fiesta', 51.4618, -0.1145),
-  V('l_villagebar', 'brixton', 'Village Social', 'bar', 'noche', false, '££', 160, '16:00 – 02:00', ['comercial', 'reggaeton'], 'copas', 51.4605, -0.1168),
-  V('l_rooftoppeck', 'peckham', 'Peckham Levels Roof', 'rooftop', 'ambos', true, '££', 280, '12:00 – 23:30', ['electronica', 'indie'], 'terraza', 51.4742, -0.0698),
-  V('l_railarch', 'peckham', 'Rail Arch Club', 'club', 'noche', false, '££', 300, '22:00 – 04:00', ['techno', 'electronica'], 'fiesta', 51.4731, -0.0675),
-  V('l_porto', 'nottinghill', 'Portobello Terrace', 'terraza', 'ambos', false, '££', 140, '10:00 – 23:00', ['indie', 'comercial'], 'terraza', 51.5100, -0.1970),
-  V('l_ladbroke', 'nottinghill', 'Ladbroke Wine Bar', 'bar', 'ambos', false, '£££', 90, '12:00 – 00:00', ['indie'], 'tranquilo', 51.5088, -0.1945),
-  V('l_canalside', 'kingscross', 'Canalside Social', 'terraza', 'ambos', true, '££', 320, '11:00 – 23:30', ['indie', 'electronica'], 'terraza', 51.5338, -0.1255),
-  V('l_granary', 'kingscross', 'Granary Club', 'club', 'noche', false, '££', 500, '22:00 – 04:00', ['electronica', 'comercial'], 'fiesta', 51.5324, -0.1228),
-  V('l_claphamcommon', 'clapham', 'Common Garden Bar', 'terraza', 'ambos', true, '££', 400, '12:00 – 23:30', ['comercial', 'indie'], 'terraza', 51.4625, -0.1395),
-  V('l_nightowl', 'clapham', 'Night Owl Club', 'club', 'noche', false, '££', 550, '22:00 – 03:30', ['comercial', 'reggaeton'], 'fiesta', 51.4614, -0.1362),
-  V('l_riverdeck', 'southbank', 'River Deck', 'terraza', 'ambos', true, '££', 450, '11:00 – 23:30', ['comercial', 'indie'], 'terraza', 51.5048, -0.0915),
-  V('l_borough', 'southbank', 'Borough Taproom', 'bar', 'ambos', false, '££', 160, '11:00 – 23:00', ['rock', 'indie'], 'tranquilo', 51.5036, -0.0905),
-  V('l_shardview', 'southbank', 'Vista 31', 'rooftop', 'ambos', true, '£££', 230, '12:00 – 00:00', ['electronica', 'comercial'], 'copas', 51.5052, -0.0950)
-];
 
-/* Contactos ficticios (números del rango reservado de Ofcom para ficción) */
-const PROMOTORES_LDN = {
-  l_nocturne: { nombre: 'Charlotte Reed', tel: '+44 7700 900101', ig: 'nocturne.demo' },
-  l_marlowe: { nombre: 'James Whitfield', tel: '+44 7700 900102', ig: 'marlowe.demo' },
-  l_gilded: { nombre: 'Amelia Hart', tel: '+44 7700 900103', ig: 'gilded.demo' },
-  l_warehouse: { nombre: 'Tom Okafor', tel: '+44 7700 900104', ig: 'warehouse9.demo' },
-  l_rooftopeast: { nombre: 'Priya Nair', tel: '+44 7700 900105', ig: 'eastroof.demo' },
-  l_basement: { nombre: 'Leo Marsh', tel: '+44 7700 900106', ig: 'basement.demo' },
-  l_electricyard: { nombre: 'Ruby Doyle', tel: '+44 7700 900107', ig: 'electricyard.demo' },
-  l_electricbrix: { nombre: 'Kwame Asante', tel: '+44 7700 900108', ig: 'brixtonwh.demo' },
-  l_rooftoppeck: { nombre: 'Maya Collins', tel: '+44 7700 900109', ig: 'peckroof.demo' },
-  l_canalside: { nombre: 'Ben Hughes', tel: '+44 7700 900110', ig: 'canalside.demo' },
-  l_claphamcommon: { nombre: 'Sophie Grant', tel: '+44 7700 900111', ig: 'commongarden.demo' },
-  l_riverdeck: { nombre: 'Daniel Price', tel: '+44 7700 900112', ig: 'riverdeck.demo' },
-  l_shardview: { nombre: 'Isla Morgan', tel: '+44 7700 900113', ig: 'vista31.demo' }
-};
+
+/* Locales reales (real.js, de OpenStreetMap). Lo que OSM no trae (aforo, música, precio) NO se inventa: el aforo es una estimación por tipo solo para simular la afluencia. */
+const TIPO_OSM = { nightclub: 'club', music_venue: 'sala', bar: 'bar', pub: 'bar' };
+const AFORO_EST = { club: 450, sala: 300, bar: 110 };
+function desdeOSM(o) {
+  const tipo = TIPO_OSM[o.t] || 'bar';
+  return { id: o.id, zona: o.z, nombre: o.n, tipo, franja: tipo === 'bar' ? 'ambos' : 'noche', partner: false, precio: '', aforo: AFORO_EST[tipo], horario: '', oh: o.h || null,
+    musica: [], ambiente: tipo === 'club' ? 'fiesta' : tipo === 'sala' ? 'conciertos' : 'copas', lat: o.la, lng: o.ln, dir: o.a || '', web: o.w || '', tel: o.p || '', ig: o.i || '', real: true };
+}
+const LOCALES_LDN = REALES.london.map(desdeOSM);
+const LOCALES_MAD = REALES.madrid.map(desdeOSM);
+const PROMOTORES_LDN = {}, PROMOTORES_MAD = {};
 
 /* Ciudades. Londres es la principal (hub). */
 const CIUDADES = {
-  london: { id: 'london', centro: [51.5050, -0.1300], zoom: 12, zonas: ZONAS_LDN, locales: LOCALES_LDN, promotores: PROMOTORES_LDN },
-  madrid: { id: 'madrid', centro: [40.4215, -3.7015], zoom: 13, zonas: ZONAS_MAD, locales: LOCALES_MAD, promotores: PROMOTORES_MAD }
+  london: { id: 'london', tz: 'Europe/London', centro: [51.5050, -0.1300], zoom: 12, zonas: ZONAS_LDN, locales: LOCALES_LDN, promotores: PROMOTORES_LDN },
+  madrid: { id: 'madrid', tz: 'Europe/Madrid', centro: [40.4215, -3.7015], zoom: 13, zonas: ZONAS_MAD, locales: LOCALES_MAD, promotores: PROMOTORES_MAD }
 };
 const CIUDAD_DEF = 'london';
 let CIUDAD = CIUDADES[CIUDAD_DEF], ZONAS = CIUDAD.zonas, LOCALES = CIUDAD.locales, PROMOTORES = CIUDAD.promotores;

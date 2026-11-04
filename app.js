@@ -9,7 +9,7 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const DIA = 86400000;
-const VERSION = 'v1.0.3';
+const VERSION = 'v1.0.4';
 
 const DEF = { lang: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
 let S = cargar();

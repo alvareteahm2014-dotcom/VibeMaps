@@ -1,5 +1,5 @@
 /* VibeMaps · service worker. Sube VERSION en cada publicación para que los móviles se actualicen solos. */
-const VERSION = 'vibemaps-v1.0.3';
+const VERSION = 'vibemaps-v1.0.4';
 const SHELL = VERSION + '-shell';
 const TILES = 'vibemaps-tiles-v1';
 const MAX_TILES = 500;
@@ -11,7 +11,7 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL).then(c => Promise.all(ARCHIVOS.map(a => fetch(a, { cache: 'reload' }).then(r => { if (!r.ok) throw new Error(a); return c.put(a, r); })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -55,7 +55,7 @@ self.addEventListener('fetch', e => {
 
   /* Archivos de la app: caché primero y se refresca en segundo plano */
   e.respondWith(caches.match(req).then(hit => {
-    const red = fetch(req).then(r => { if (r && r.ok) { const copia = r.clone(); caches.open(SHELL).then(c => c.put(req, copia)); } return r; }).catch(() => hit);
+    const red = fetch(req, { cache: 'no-cache' }).then(r => { if (r && r.ok) { const copia = r.clone(); caches.open(SHELL).then(c => c.put(req, copia)); } return r; }).catch(() => hit);
     return hit || red;
   }));
 });

@@ -9,7 +9,7 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const DIA = 86400000;
-const VERSION = 'v1.0.2';
+const VERSION = 'v1.0.3';
 
 const DEF = { lang: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
 let S = cargar();
@@ -27,7 +27,7 @@ const V_ = { vista: 'map', sheet: null, filtro: 'todos', ocup: {}, factor: {}, r
 let map = null, tiles = null, lienzo = null;
 const capas = {};
 
-const URL_TILES = { dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' };
+const URL_TILES = { dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', light: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}' };
 
 /* =====================================================================
    2) Plan y suscripción (gratis / premium)
@@ -402,8 +402,8 @@ function refrescarVivo() {
 function initMapa() {
   if (map) return;
   map = L.map('mapa', { zoomControl: false, attributionControl: false, preferCanvas: true, minZoom: 11, maxZoom: 18 });
-  tiles = L.tileLayer(URL_TILES[tema()], { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
-  L.control.attribution({ prefix: false, position: 'topright' }).addAttribution('© OpenStreetMap · © CARTO').addTo(map);
+  tiles = L.tileLayer(URL_TILES[tema()], { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
+  L.control.attribution({ prefix: false, position: 'topright' }).addAttribution('© Esri · © OpenStreetMap contributors').addTo(map);
   lienzo = L.canvas({ padding: .5 });
   capas.calor = L.layerGroup().addTo(map); capas.puntos = L.layerGroup().addTo(map); capas.zonas = L.layerGroup().addTo(map);
   capas.locales = L.layerGroup(); capas.yo = L.layerGroup().addTo(map);

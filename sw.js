@@ -1,5 +1,5 @@
 /* VibeMaps · service worker. Sube VERSION en cada publicación para que los móviles se actualicen solos. */
-const VERSION = 'vibemaps-v1.0.2';
+const VERSION = 'vibemaps-v1.0.3';
 const SHELL = VERSION + '-shell';
 const TILES = 'vibemaps-tiles-v1';
 const MAX_TILES = 500;
@@ -31,7 +31,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
 
   /* Mapa base: red primero, caché si no hay conexión */
-  if (/basemaps\.cartocdn\.com$/.test(url.hostname)) {
+  if (/(^|\.)arcgisonline\.com$/.test(url.hostname)) {
     e.respondWith(caches.open(TILES).then(async c => {
       try {
         const r = await fetch(req);

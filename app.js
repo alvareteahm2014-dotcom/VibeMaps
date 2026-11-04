@@ -9,10 +9,13 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const DIA = 86400000;
-const VERSION = 'v1.0.4';
+const VERSION = 'v1.1.0';
 
-const DEF = { lang: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
+const DEF = { lang: null, ciudad: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
 let S = cargar();
+usarCiudad(S.ciudad || CIUDAD_DEF);
+const nombreCiudad = () => t('city.' + CIUDAD.id);
+const localAny = id => Object.values(CIUDADES).flatMap(c => c.locales).find(v => v.id === id);
 function cargar() {
   try {
     const raw = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || 'null');
@@ -100,8 +103,8 @@ function perfilLocal(v) {
   const z = zonaDe(v), p = z.perfil;
   const d = { club: -2, sala: -1, cocktail: 2, rooftop: 2, bar: 0, terraza: 1, parque: 1 }[v.tipo] || 0;
   const est = Object.assign({}, p.estilos);
-  if (v.precio === '€€€') { est.arreglado *= 1.35; est.pijo *= 1.35; }
-  if (v.precio === '€') { est.rollo *= 1.2; est.casual *= 1.2; }
+  if (v.precio.length === 3) { est.arreglado *= 1.35; est.pijo *= 1.35; }
+  if (v.precio.length === 1) { est.rollo *= 1.2; est.casual *= 1.2; }
   const mus = Object.assign({}, p.musicas); v.musica.forEach(m => { mus[m] = (mus[m] || 0) * 1.8 + 10; });
   const amb = Object.assign({}, p.ambientes); amb[v.ambiente] = (amb[v.ambiente] || 0) * 1.5 + 12;
   return Object.assign({}, p, { edadMedia: p.edadMedia + d, estilos: est, musicas: mus, ambientes: amb });
@@ -324,7 +327,7 @@ function obUbicacion() {
   S.consent = !!(chk && chk.checked); guardar();
   if (!S.consent) { OB.error = t('loc.need_consent'); obRender(); return; }
   pedirUbicacion(r => {
-    if (r === 'ok') { toast(t('loc.ok')); obIr('plan'); }
+    if (r === 'ok') { const c = ciudadMasCercana(S.pos); if (c.km <= 60) { S.ciudad = c.id; usarCiudad(c.id); guardar(); } toast(t('loc.ok')); obIr('plan'); }
     else { OB.error = ''; OB.locMsg = t(r === 'unsupported' ? 'loc.unsupported' : 'loc.denied'); obRender(); }
   });
 }
@@ -378,12 +381,21 @@ function actualizarSelectores() {
   const m = S.ajustes.momento;
   $('#sel-momento').innerHTML = ['ahora', 'noche', 'dia'].map(k => `<option value="${k}" ${m === k ? 'selected' : ''}>${t('mom.' + k)}</option>`).join('');
   $('#lbl-momento').textContent = t('mom.' + m);
+  $('#sel-ciudad').innerHTML = Object.keys(CIUDADES).map(k => `<option value="${k}" ${CIUDAD.id === k ? 'selected' : ''}>${t('city.' + k)}</option>`).join('');
+  $('#lbl-ciudad').textContent = nombreCiudad();
   $('#dot-momento').style.background = momento() === 'noche' ? 'var(--brand)' : 'var(--verde)';
   const b = $('#btn-tema'); b.innerHTML = tema() === 'dark' ? ICO.sol : ICO.luna; b.title = t('theme.' + S.ajustes.tema);
   $('#btn-centrar').title = t('map.locate');
   $('#pista-lock span').textContent = t('map.lock');
   $('#pista-zoom').textContent = t('map.zoom');
   $('#pista-lock').classList.toggle('hidden', esPremium());
+}
+function cambiarCiudad(id, centrar = true) {
+  if (!CIUDADES[id] || id === CIUDAD.id) { actualizarSelectores(); return; }
+  S.ciudad = id; guardar(); usarCiudad(id);
+  if (V_.sheet) cerrarSheet();
+  reseedOcupacion(); actualizarSelectores(); pintarMapa(); pintarVistaActual();
+  if (map && centrar) map.flyTo(CIUDAD.centro, CIUDAD.zoom, { duration: .9 });
 }
 function cambioMomento() { aplicarTema(); actualizarSelectores(); reseedOcupacion(); pintarMapa(); pintarVistaActual(); if (V_.sheet) pintarSheet(); }
 function renderTodo() {
@@ -407,7 +419,7 @@ function initMapa() {
   lienzo = L.canvas({ padding: .5 });
   capas.calor = L.layerGroup().addTo(map); capas.puntos = L.layerGroup().addTo(map); capas.zonas = L.layerGroup().addTo(map);
   capas.locales = L.layerGroup(); capas.yo = L.layerGroup().addTo(map);
-  map.setView([40.4215, -3.7015], 13);
+  map.setView(CIUDAD.centro, CIUDAD.zoom);
   map.on('zoomend', nivelZoom);
   nivelZoom();
 }
@@ -459,7 +471,7 @@ function pintarYo() {
 function distanciaKm(a, b) { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); }
 function centrarEnMi() {
   if (!S.pos) { toast(t('map.nopos')); return; }
-  if (distanciaKm(S.pos, { lat: 40.4168, lng: -3.7038 }) > 40) { toast(t('map.far')); return; }
+  if (distanciaKm(S.pos, { lat: CIUDAD.centro[0], lng: CIUDAD.centro[1] }) > 60) { toast(t('map.far', { city: nombreCiudad() })); return; }
   map.flyTo([S.pos.lat, S.pos.lng], 15, { duration: .8 });
 }
 function pintarResumenMapa() {
@@ -469,7 +481,7 @@ function pintarResumenMapa() {
   const total = zs.reduce((a, x) => a + x.e.personas, 0);
   const abiertos = LOCALES.filter(abierto).length;
   el.classList.toggle('cerrado', !V_.resumenAbierto);
-  el.innerHTML = `<button class="rs-cab" data-accion="toggle-resumen" aria-expanded="${V_.resumenAbierto}"><b>${t('map.sum.title.' + m)}</b><span>${total.toLocaleString(localeTag())} ${t('map.sum.people')}${esPremium() ? ' · ' + t('map.sum.venues', { n: abiertos }) : ''}</span>${ICO.chev}</button>
+  el.innerHTML = `<button class="rs-cab" data-accion="toggle-resumen" aria-expanded="${V_.resumenAbierto}"><b>${t('map.sum.title.' + m, { city: nombreCiudad() })}</b><span>${total.toLocaleString(localeTag())} ${t('map.sum.people')}${esPremium() ? ' · ' + t('map.sum.venues', { n: abiertos }) : ''}</span>${ICO.chev}</button>
     <div class="rs-cuerpo"><button class="rs-fila" data-accion="abrir-zona" data-id="${mejor.z.id}"><i style="background:${COLOR[mejor.e.nivel]}"></i><span>${t('map.sum.best')}</span><b>${esc(mejor.z.nombre)} · ${mejor.e.match}%</b></button>
     <button class="rs-fila" data-accion="abrir-zona" data-id="${caliente.z.id}"><i style="background:${COLOR[caliente.e.nivel]}"></i><span>${t('map.sum.hot')}</span><b>${esc(caliente.z.nombre)} · ≈${caliente.e.personas}</b></button></div>`;
 }
@@ -565,11 +577,14 @@ function actualizarLiveSheet() {
 /* Reservas (solo Premium) */
 function abrirReserva(id) {
   const v = localPorId(id); if (!v || !esPremium()) return;
-  const hoy = new Date(), pad = n => String(n).padStart(2, '0'), iso = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
-  const hora = momento() === 'noche' ? '23:00' : '13:30';
+  const pad = n => String(n).padStart(2, '0'), ahora = new Date(), [hh, mm] = (momento() === 'noche' ? '23:00' : '13:30').split(':').map(Number);
+  let sug = new Date(); sug.setHours(hh, mm, 0, 0);
+  if (sug.getTime() < ahora.getTime() + 30 * 60000) { sug = new Date(Math.ceil((ahora.getTime() + 30 * 60000) / 1800000) * 1800000); }
+  const iso = `${sug.getFullYear()}-${pad(sug.getMonth() + 1)}-${pad(sug.getDate())}`, hora = `${pad(sug.getHours())}:${pad(sug.getMinutes())}`;
+  const minIso = `${ahora.getFullYear()}-${pad(ahora.getMonth() + 1)}-${pad(ahora.getDate())}`;
   abrirModal(`<h3>${t('r.title')} · ${esc(v.nombre)}</h3>
     <div class="campo"><span>${t('r.type')}</span><div class="chips">${RESERVA_TIPOS[v.tipo].map((k, i) => `<button type="button" class="chip ${i === 0 ? 'on' : ''}" data-accion="r-tipo" data-valor="${k}">${t('r.t.' + k)}</button>`).join('')}</div></div>
-    <div class="dos"><label class="campo"><span>${t('r.date')}</span><input id="r-fecha" type="date" min="${iso}" value="${iso}"></label><label class="campo"><span>${t('r.time')}</span><input id="r-hora" type="time" value="${hora}"></label></div>
+    <div class="dos"><label class="campo"><span>${t('r.date')}</span><input id="r-fecha" type="date" min="${minIso}" value="${iso}"></label><label class="campo"><span>${t('r.time')}</span><input id="r-hora" type="time" value="${hora}"></label></div>
     <div class="dos"><label class="campo"><span>${t('r.guests')}</span><input id="r-pers" type="number" min="1" max="30" value="2" inputmode="numeric"></label><label class="campo"><span>${t('r.name')}</span><input id="r-nombre" value="${esc(S.usuario.nombre)}" maxlength="40"></label></div>
     <div class="err hidden" id="r-err">${t('r.err')}</div>
     <p class="mini">${t('r.demo')}</p>
@@ -617,7 +632,7 @@ function pintarExplorar() {
   const el = $('#view-explore'), f = V_.filtro, m = momento();
   const abiertos = LOCALES.filter(abierto);
   if (!esPremium()) {
-    el.innerHTML = `<div class="seccion"><div><h2>${t('ex.title')}</h2><p class="sub">${t('ex.sub.' + m, { n: abiertos.length })}</p></div>${bloqueoVista(t('ex.locked.title'), t('ex.locked.sub', { n: abiertos.length }))}</div>`;
+    el.innerHTML = `<div class="seccion"><div><h2>${t('ex.title')}</h2><p class="sub">${t('ex.sub.' + m, { n: abiertos.length })}</p></div>${bloqueoVista(t('ex.locked.title'), t('ex.locked.sub', { n: abiertos.length, city: nombreCiudad() }))}</div>`;
     return;
   }
   const filtros = ['todos', 'parati', 'club', 'bar', 'terraza', 'partner'];
@@ -633,7 +648,7 @@ function pintarRadar() {
   const zs = ZONAS.map(z => ({ z, e: estadoZona(z) })).sort((a, b) => b.e.match - a.e.match);
   const total = zs.reduce((a, x) => a + x.e.personas, 0), vibe = Math.round(zs.reduce((a, x) => a + x.e.personas * x.e.match / 100, 0));
   const g = compatGlobal(), col = COLOR[nivel(g)], mejor = zs[0];
-  el.innerHTML = `<div class="seccion"><div><h2>${t('rd.title')}</h2><p class="sub">${t('rd.sub')}</p></div>
+  el.innerHTML = `<div class="seccion"><div><h2>${t('rd.title')}</h2><p class="sub">${t('rd.sub', { city: nombreCiudad() })}</p></div>
     <div class="radar-top"><div class="anillo grande">${anillo(g, col, 120, 11)}<b>${g}%</b></div><div><span class="mini">${t('rd.global')}</span><div class="vibe-n">≈${vibe.toLocaleString(localeTag())}</div><span class="mini">${t('rd.vibe')} ${t('rd.of', { n: total.toLocaleString(localeTag()) })}</span></div></div>
     <h4>${t('rd.ranking')}</h4><div class="ranking">${zs.map(({ z, e }) => `<button class="rk" data-accion="abrir-zona" data-id="${z.id}"><span>${esc(z.nombre)}</span><i><b style="width:${e.match}%;background:${COLOR[e.nivel]}"></b></i><em>${e.match}%</em></button>`).join('')}</div>
     <h4>${t('rd.best')} · ${esc(mejor.z.nombre)}</h4>${htmlGente(mejor.z.perfil)}</div>`;
@@ -652,7 +667,7 @@ function pintarPerfil() {
     ? `<div class="plan-card prem"><div><span class="mini">${t('pf.plan')}</span><h3>${t('pf.premium')}</h3><p class="mini">${S.cancelado ? t('pf.ends', { d: fechaTxt(S.premiumUntil) }) : t('pf.renews', { d: fechaTxt(S.premiumUntil) })}</p></div>${S.cancelado ? `<button class="btn" data-accion="reanudar">${t('pf.resume')}</button>` : `<button class="btn sec" data-accion="cancelar-sub">${t('pf.cancel')}</button>`}</div>`
     : `<div class="plan-card"><div><span class="mini">${t('pf.plan')}</span><h3>${t('pf.free')}</h3><p class="mini">${t('plan.free.no')}</p></div><button class="btn" data-accion="checkout">${t('pf.upgrade')} · ${t('plan.price.short')}</button></div>`;
   const res = !prem ? `<p class="mini">${t('pf.res.locked')}</p>` : S.reservas.length
-    ? S.reservas.slice().sort((a, b) => a.cuando - b.cuando).map(r => { const v = localPorId(r.local); return v ? `<div class="reserva"><div><b>${esc(v.nombre)}</b><span>${t('r.t.' + r.tipo)} · ${new Date(r.cuando).toLocaleString(localeTag(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${t('pf.res.guests', { n: r.personas })}</span></div><button class="link" data-accion="borrar-reserva" data-id="${r.id}">${t('pf.res.cancel')}</button></div>` : ''; }).join('')
+    ? S.reservas.slice().sort((a, b) => a.cuando - b.cuando).map(r => { const v = localAny(r.local); return v ? `<div class="reserva"><div><b>${esc(v.nombre)}</b><span>${t('r.t.' + r.tipo)} · ${new Date(r.cuando).toLocaleString(localeTag(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${t('pf.res.guests', { n: r.personas })}</span></div><button class="link" data-accion="borrar-reserva" data-id="${r.id}">${t('pf.res.cancel')}</button></div>` : ''; }).join('')
     : `<p class="mini">${t('pf.res.none')}</p>`;
   const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const instalar = V_.installEvt ? filaPerfil(t('pf.install'), 'instalar') : (esIOS && !standalone ? `<p class="mini">${t('pf.install.ios')}</p>` : '');
@@ -661,6 +676,7 @@ function pintarPerfil() {
     ${plan}
     <h4>${t('pf.language')}</h4><div class="chips">${LANGS.map(l => `<button class="chip ${LANG === l.id ? 'on' : ''}" data-accion="idioma" data-valor="${l.id}">${l.nombre}</button>`).join('')}</div>
     <h4>${t('pf.theme')}</h4><div class="chips">${['auto', 'dark', 'light'].map(k => `<button class="chip ${S.ajustes.tema === k ? 'on' : ''}" data-accion="set-tema" data-valor="${k}">${t('theme.' + k)}</button>`).join('')}</div>
+    <h4>${t('pf.city')}</h4><div class="chips">${Object.keys(CIUDADES).map(k => `<button class="chip ${CIUDAD.id === k ? 'on' : ''}" data-accion="set-ciudad" data-valor="${k}">${t('city.' + k)}</button>`).join('')}</div>
     <h4>${t('pf.moment')}</h4><div class="chips">${['ahora', 'noche', 'dia'].map(k => `<button class="chip ${S.ajustes.momento === k ? 'on' : ''}" data-accion="set-momento" data-valor="${k}">${t('mom.' + k)}</button>`).join('')}</div>
     <h4>${t('pf.reservations')}</h4>${res}
     <h4>${t('pf.about')}</h4>
@@ -722,6 +738,7 @@ document.addEventListener('click', e => {
     /* perfil */
     case 'idioma': S.lang = val; guardar(); setLangId(val); renderTodo(); break;
     case 'set-tema': S.ajustes.tema = val; guardar(); aplicarTema(); actualizarSelectores(); pintarPerfil(); break;
+    case 'set-ciudad': cambiarCiudad(val); pintarPerfil(); break;
     case 'set-momento': S.ajustes.momento = val; guardar(); cambioMomento(); break;
     case 'editar-perfil': F = Object.assign(nuevoF(), JSON.parse(JSON.stringify(S.usuario)), { edad: String(S.usuario.edad) }); OB = { paso: 'p1', edit: true, error: '', locMsg: '' }; cerrarSheet(); $('#app').classList.add('hidden'); $('#onboarding').classList.remove('hidden'); obRender(); break;
     case 'activar-ubicacion':
@@ -759,6 +776,7 @@ window.addEventListener('offline', () => { if (!$('#app').classList.contains('hi
 
 function boot() {
   setLangId(S.lang || detectarIdioma());
+  $('#sel-ciudad').addEventListener('change', e => cambiarCiudad(e.target.value));
   $('#sel-momento').addEventListener('change', e => { S.ajustes.momento = e.target.value; guardar(); cambioMomento(); });
   $('#btn-tema').addEventListener('click', () => { S.ajustes.tema = tema() === 'dark' ? 'light' : 'dark'; guardar(); aplicarTema(); actualizarSelectores(); pintarVistaActual(); });
   $('#btn-centrar').addEventListener('click', centrarEnMi);

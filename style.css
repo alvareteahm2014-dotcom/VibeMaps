@@ -257,3 +257,6 @@ h5{font-size:12px;font-weight:600;color:var(--ink2);margin:14px 0 6px}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #onboarding~#toast{bottom:28px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.sel-m.ciudad{padding:0 12px}.sel-m.ciudad::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--brand)}
+
+#sheet .sh-cab{padding-right:96px}#sheet .sh-cab h2{overflow-wrap:anywhere}

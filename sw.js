@@ -1,5 +1,5 @@
 /* VibeMaps · service worker. Sube VERSION en cada publicación para que los móviles se actualicen solos. */
-const VERSION = 'vibemaps-v1.2.0';
+const VERSION = 'vibemaps-v1.3.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'vibemaps-tiles-v1';
 const MAX_TILES = 500;

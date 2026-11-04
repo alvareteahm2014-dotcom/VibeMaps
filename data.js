@@ -6,6 +6,8 @@ const CONFIG = {
   MONEDA: 'GBP',
   /* Cuando exista una cuenta de Stripe, pega aquí el enlace de pago (Payment Link) de la suscripción mensual. */
   STRIPE_PAYMENT_LINK: '',
+  /* URL del servidor (Cloudflare Worker), p. ej. 'https://vibemaps-api.TU-USUARIO.workers.dev'. Vacío = modo demo con datos y pago simulados dentro de la app. */
+  API_URL: '',
   CONTACTO: 'hola@vibemaps.example',
   STORAGE_KEY: 'vibemaps.v1'
 };
@@ -108,8 +110,9 @@ function desdeOSM(o) {
   return { id: o.id, zona: o.z, nombre: o.n, tipo, franja: tipo === 'bar' ? 'ambos' : 'noche', partner: false, precio: '', aforo: AFORO_EST[tipo], horario: '', oh: o.h || null,
     musica: [], ambiente: tipo === 'club' ? 'fiesta' : tipo === 'sala' ? 'conciertos' : 'copas', lat: o.la, lng: o.ln, dir: o.a || '', web: o.w || '', tel: o.p || '', ig: o.i || '', real: true };
 }
-const LOCALES_LDN = REALES.london.map(desdeOSM);
-const LOCALES_MAD = REALES.madrid.map(desdeOSM);
+const REALES_OK = typeof REALES !== 'undefined';
+const LOCALES_LDN = REALES_OK ? REALES.london.map(desdeOSM) : [];
+const LOCALES_MAD = REALES_OK ? REALES.madrid.map(desdeOSM) : [];
 const PROMOTORES_LDN = {}, PROMOTORES_MAD = {};
 
 /* Ciudades. Londres es la principal (hub). */
@@ -119,6 +122,8 @@ const CIUDADES = {
 };
 const CIUDAD_DEF = 'london';
 let CIUDAD = CIUDADES[CIUDAD_DEF], ZONAS = CIUDAD.zonas, LOCALES = CIUDAD.locales, PROMOTORES = CIUDAD.promotores;
+/* En modo servidor los locales llegan por red: anónimos (sin nombre) en gratis, completos en Premium */
+function fijarLocales(id, lista) { CIUDADES[id].locales = lista.map(desdeOSM); if (CIUDAD.id === id) LOCALES = CIUDADES[id].locales; }
 function usarCiudad(id) { CIUDAD = CIUDADES[id] || CIUDADES[CIUDAD_DEF]; ZONAS = CIUDAD.zonas; LOCALES = CIUDAD.locales; PROMOTORES = CIUDAD.promotores; return CIUDAD; }
 function ciudadMasCercana(pos) {
   let mejor = null, dmin = 1e9;

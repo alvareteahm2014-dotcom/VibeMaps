@@ -9,9 +9,9 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const DIA = 86400000;
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 
-const DEF = { lang: null, ciudad: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
+const DEF = { lang: null, ciudad: null, uid: null, token: null, usuario: null, plan: 'free', premiumUntil: 0, cancelado: false, ajustes: { momento: 'ahora', tema: 'auto' }, favs: [], reservas: [], pos: null, consent: false, onboarded: false };
 let S = cargar();
 usarCiudad(S.ciudad || CIUDAD_DEF);
 const nombreCiudad = () => t('city.' + CIUDAD.id);
@@ -35,8 +35,60 @@ const URL_TILES = { dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/
 /* =====================================================================
    2) Plan y suscripción (gratis / premium)
    ===================================================================== */
+/* Modo servidor: la suscripción y los locales los decide el servidor (Stripe). */
+const modoServidor = () => !!CONFIG.API_URL;
+async function api(ruta, { method = 'GET', body } = {}) {
+  const h = {}; if (body) h['Content-Type'] = 'application/json'; if (S.token) h.Authorization = 'Bearer ' + S.token;
+  const r = await fetch(CONFIG.API_URL.replace(/\/$/, '') + ruta, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
+  let data = null; try { data = await r.json(); } catch (e) { /* sin cuerpo */ }
+  return { ok: r.ok, status: r.status, data };
+}
+function uidLocal() { if (!S.uid) { S.uid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'u-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12) + 'abcdef'; guardar(); } return S.uid; }
+function bajarAGratis() { S.plan = 'free'; S.premiumUntil = 0; S.cancelado = false; guardar(); Object.keys(CIUDADES).forEach(c => { try { localStorage.removeItem('vibemaps.loc.' + c); } catch (e) { /* ignorar */ } }); }
+async function cargarLocales(cid) {
+  if (!modoServidor()) return;
+  const clave = 'vibemaps.loc.' + cid;
+  try {
+    let r = esPremium() ? await api('/api/locales?city=' + cid) : null;
+    if (r && (r.status === 401 || r.status === 402)) { if (r.status === 401) S.token = null; bajarAGratis(); r = null; }
+    if (!r) r = await api('/api/resumen?city=' + cid);
+    if (r.ok) { fijarLocales(cid, r.data); if (esPremium()) { try { localStorage.setItem(clave, JSON.stringify(r.data)); } catch (e) { /* ignorar */ } } }
+  } catch (e) {
+    if (esPremium()) { try { const c = JSON.parse(localStorage.getItem(clave) || 'null'); if (c) fijarLocales(cid, c); } catch (x) { /* ignorar */ } }
+    if (V_._sim) toast(t('toast.offline'), 3200);
+  }
+  if (CIUDAD.id === cid && V_._sim) { reseedOcupacion(); renderTodo(); }
+}
+async function sincronizarPlan() {
+  if (!modoServidor()) return;
+  if (S.token) {
+    try {
+      const r = await api('/api/estado');
+      if (r.status === 401) { S.token = null; bajarAGratis(); }
+      else if (r.ok) { if (r.data.active) { S.plan = 'premium'; S.premiumUntil = r.data.until || 0; S.cancelado = !!r.data.cancel; guardar(); } else bajarAGratis(); }
+    } catch (e) { /* sin conexión: se conserva el último estado conocido */ }
+  } else if (S.plan === 'premium') bajarAGratis();
+  await cargarLocales(CIUDAD.id);
+  if (V_._sim) { renderTodo(); }
+}
+async function retornoPago() {
+  if (!modoServidor()) return;
+  const q = new URLSearchParams(location.search), est = q.get('pago'); if (!est) return;
+  history.replaceState(null, '', location.pathname);
+  if (est === 'ok' && /^cs_/.test(q.get('session_id') || '')) {
+    try {
+      const r = await api('/api/claim', { method: 'POST', body: { uid: uidLocal(), session_id: q.get('session_id') } });
+      if (r.ok && r.data.token) { S.token = r.data.token; S.plan = 'premium'; S.premiumUntil = r.data.until; S.cancelado = !!r.data.cancel; if (S.usuario) S.onboarded = true; guardar(); V_._pagoOk = true; return; }
+    } catch (e) { /* se avisa abajo */ }
+    V_._pagoError = true;
+  } else if (est === 'cancelado') V_._pagoCancelado = true;
+}
+async function abrirPortal() {
+  try { const r = await api('/api/portal', { method: 'POST' }); if (r.ok && r.data.url) { location.href = r.data.url; return; } } catch (e) { /* aviso abajo */ }
+  toast(t('ck.error'), 3200);
+}
 function refrescarPlan() {
-  if (S.plan !== 'premium') return;
+  if (modoServidor() || S.plan !== 'premium') return;
   const now = Date.now();
   let guard = 0;
   while (S.premiumUntil < now && guard++ < 60) {
@@ -47,7 +99,11 @@ function refrescarPlan() {
 }
 const esPremium = () => S.plan === 'premium';
 function activarPremium() { S.plan = 'premium'; S.premiumUntil = Date.now() + 30 * DIA; S.cancelado = false; guardar(); }
-function irAPago(onDemo) {
+async function irAPago(onDemo) {
+  if (modoServidor()) {
+    try { const r = await api('/api/checkout', { method: 'POST', body: { uid: uidLocal() } }); if (r.ok && r.data.url) { guardar(); location.href = r.data.url; return; } } catch (e) { /* aviso abajo */ }
+    toast(t('ck.error'), 3200); return;
+  }
   if (CONFIG.STRIPE_PAYMENT_LINK) { window.location.href = CONFIG.STRIPE_PAYMENT_LINK; return; }
   activarPremium(); if (onDemo) onDemo();
 }
@@ -451,7 +507,7 @@ function cambiarCiudad(id, centrar = true) {
   if (!CIUDADES[id] || id === CIUDAD.id) { actualizarSelectores(); return; }
   S.ciudad = id; guardar(); usarCiudad(id);
   if (V_.sheet) cerrarSheet();
-  reseedOcupacion(); actualizarSelectores(); pintarMapa(); pintarVistaActual();
+  reseedOcupacion(); actualizarSelectores(); pintarMapa(); pintarVistaActual(); cargarLocales(id);
   if (map && centrar) map.flyTo(CIUDAD.centro, CIUDAD.zoom, { duration: .9 });
 }
 function cambioMomento() { aplicarTema(); actualizarSelectores(); reseedOcupacion(); pintarMapa(); pintarVistaActual(); if (V_.sheet) pintarSheet(); }
@@ -673,8 +729,8 @@ function abrirCheckout(origen) {
   abrirModal(`<h3>${t('ck.title')}</h3>
     <div class="ck-linea"><span>${t('ck.line')}</span><b>${precioTxt()}</b></div>
     <div class="ck-linea total"><span>${t('ck.total')}</span><b>${t('plan.price.short')}</b></div>
-    <p class="mini">${t('ck.renew')}</p><div class="aviso">${t('ck.demo')}</div>
-    <button class="btn grande" data-accion="ck-confirmar" data-origen="${origen || 'app'}">${CONFIG.STRIPE_PAYMENT_LINK ? t('ck.pay') : t('ck.confirm')}</button>
+    <p class="mini">${t('ck.renew')}</p>${modoServidor() ? '' : `<div class="aviso">${t('ck.demo')}</div>`}
+    <button class="btn grande" data-accion="ck-confirmar" data-origen="${origen || 'app'}">${CONFIG.STRIPE_PAYMENT_LINK || modoServidor() ? t('ck.pay') : t('ck.confirm')}</button>
     <button class="btn sec grande" data-accion="cerrar-modal">${t('cancel')}</button>
     <p class="mini"><button class="link" data-accion="ver-terminos">${t('pf.terms')}</button></p>`);
 }
@@ -792,8 +848,8 @@ document.addEventListener('click', e => {
     case 'paywall': abrirPaywall(); break;
     case 'checkout': abrirCheckout('app'); break;
     case 'ck-confirmar': checkoutConfirmado(b.dataset.origen); break;
-    case 'cancelar-sub': confirmar(t('pf.cancel.q'), () => { S.cancelado = true; guardar(); pintarPerfil(); toast(t('pf.cancel.done')); }); break;
-    case 'reanudar': S.cancelado = false; guardar(); pintarPerfil(); break;
+    case 'cancelar-sub': if (modoServidor()) abrirPortal(); else confirmar(t('pf.cancel.q'), () => { S.cancelado = true; guardar(); pintarPerfil(); toast(t('pf.cancel.done')); }); break;
+    case 'reanudar': if (modoServidor()) abrirPortal(); else { S.cancelado = false; guardar(); pintarPerfil(); } break;
     /* modal */
     case 'cerrar-modal': cerrarModal(); break;
     case 'confirmar-si': { const f = confirmar._f; cerrarModal(); if (f) f(); break; }
@@ -838,7 +894,7 @@ function registrarSW() {
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); V_.installEvt = e; if (V_.vista === 'profile' && !$('#app').classList.contains('hidden')) pintarPerfil(); });
 window.addEventListener('offline', () => { if (!$('#app').classList.contains('hidden')) toast(t('toast.offline'), 3200); });
 
-function boot() {
+async function boot() {
   setLangId(S.lang || detectarIdioma());
   $('#sel-ciudad').addEventListener('change', e => cambiarCiudad(e.target.value));
   $('#sel-momento').addEventListener('change', e => { S.ajustes.momento = e.target.value; guardar(); cambioMomento(); });
@@ -847,7 +903,12 @@ function boot() {
   $('#pista-lock').addEventListener('click', abrirPaywall);
   $('#sheet-bg').addEventListener('click', cerrarSheet);
   refrescarPlan();
+  await retornoPago();
+  if (modoServidor() && S.onboarded && S.usuario) await Promise.race([cargarLocales(CIUDAD.id), new Promise(r => setTimeout(r, 2500))]);
   if (S.onboarded && S.usuario) entrarApp(); else mostrarOnboarding('lang');
+  if (V_._pagoOk) toast(t('ck.success'), 3600); else if (V_._pagoError) toast(t('ck.error'), 3600); else if (V_._pagoCancelado) toast(t('ck.cancelled'), 3000);
   registrarSW();
+  sincronizarPlan();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && modoServidor() && S.token) sincronizarPlan(); });
 }
 boot();
